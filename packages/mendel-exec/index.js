@@ -21,19 +21,9 @@ function runEntryInVM(filename, source, sandbox, require) {
     // the filename is only necessary for uncaught exception reports to point to the right file
     try {
         const unshebangedSource = source.replace(/^#!.*\n/, '');
-        const nodeSource = vm.runInContext(
-            m.wrap(unshebangedSource),
-            sandbox,
-            {filename}
-        );
+        const nodeSource = vm.runInContext(m.wrap(unshebangedSource), sandbox, {filename});
         // function (exports, require, module, __filename, __dirname)
-        nodeSource(
-            exports,
-            require.bind(null, filename),
-            module,
-            filename,
-            path.dirname(filename)
-        );
+        nodeSource(exports, require.bind(null, filename), module, filename, path.dirname(filename));
     } catch (e) {
         delete require.cache[filename];
         throw e;
@@ -55,22 +45,22 @@ function matchVar(norm, entries, variations, runtime) {
     for (let i = 0; i < multiVariations.length; i++) {
         const varId = multiVariations[i];
         const found = entries.find(entry => {
-            return entry.variation === varId &&
-                (
-                    entry.runtime === 'isomorphic' ||
-                    entry.runtime === runtime ||
-                    entry.runtime === 'package'
-                );
+            return (
+                entry.variation === varId &&
+                (entry.runtime === 'isomorphic' || entry.runtime === runtime || entry.runtime === 'package')
+            );
         });
         if (found) return found;
     }
 
-    throw new RangeError([
-        `Could not find entries with norm "${norm}" that matches`,
-        `"${JSON.stringify(variations)}"`,
-        'in the list of entries',
-        `[${entries.map(({id}) => id)}]`,
-    ].join(' '));
+    throw new RangeError(
+        [
+            `Could not find entries with norm "${norm}" that matches`,
+            `"${JSON.stringify(variations)}"`,
+            'in the list of entries',
+            `[${entries.map(({id}) => id)}]`
+        ].join(' ')
+    );
 }
 
 function exec(fileName, source, {sandbox = {}, resolver}) {
@@ -84,6 +74,9 @@ function exec(fileName, source, {sandbox = {}, resolver}) {
     if (!sandbox.clearTimeout) sandbox.clearTimeout = global.clearTimeout;
     if (!sandbox.setInterval) sandbox.setInterval = global.setInterval;
     if (!sandbox.clearInterval) sandbox.clearInterval = global.clearInterval;
+    if (!sandbox.babelHelpers) {
+        vm.runInContext(require('babel-core').buildExternalHelpers(), sandbox);
+    }
 
     // Let's pipe vm output to stdout this way
     sandbox.console = console;
@@ -97,7 +90,7 @@ function exec(fileName, source, {sandbox = {}, resolver}) {
 
         // In such case, it is real node's module.
         const dependencyPath = resolve.sync(literal, {
-            basedir: path.dirname(parentId),
+            basedir: path.dirname(parentId)
         });
 
         return _require(dependencyPath);
@@ -110,16 +103,11 @@ function exec(fileName, source, {sandbox = {}, resolver}) {
 }
 
 module.exports = {
-    execWithRegistry(registry, mainId, variations, sandbox, runtime='main') {
+    execWithRegistry(registry, mainId, variations, sandbox, runtime = 'main') {
         function resolve(norm) {
             const entries = registry.getExecutableEntries(norm);
             if (!entries) return null;
-            return matchVar(
-                norm,
-                Array.from(entries.values()),
-                variations,
-                runtime
-            );
+            return matchVar(norm, Array.from(entries.values()), variations, runtime);
         }
 
         const mainEntry = resolve(mainId);
@@ -137,7 +125,7 @@ module.exports = {
                     let normId = parent.deps[depLiteral][runtime];
                     if (typeof normId === 'object') normId = normId[runtime];
                     return resolve(normId);
-                },
+                }
             });
         } catch (e) {
             e.stack = errorMapper(e.stack, registry);
@@ -146,5 +134,5 @@ module.exports = {
             throw e;
         }
     },
-    exec,
+    exec
 };
