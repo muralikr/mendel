@@ -106,7 +106,17 @@ function MendelMiddleware(opts) {
         var pack = bpack({raw: true, hasExports: true});
         var decodedResults = trees.findTreeForHash(params.bundle, params.hash);
         if (!decodedResults || decodedResults.error) {
-            return notFound(res, decodedResults && decodedResults.error);
+            return notFound(res, decodedResults && decodedResults.error, params);
+        }
+
+        var modules = indexedDeps(decodedResults.deps.filter(Boolean));
+
+        if (!modules.length) {
+            // Something wrong, modules shouldn't be zero
+            return notFound(res, {
+                code: 'EMPTYBUNDLE',
+                message: 'Tree contents are empty'
+            }, params);
         }
 
         // Serve bundle
@@ -116,7 +126,6 @@ function MendelMiddleware(opts) {
         });
 
         pack.pipe(res);
-        var modules = indexedDeps(decodedResults.deps.filter(Boolean));
         for (var i = 0; i < modules.length; i++) {
             pack.write(modules[i]);
         }
@@ -277,13 +286,20 @@ function indexedDeps(mods) {
 
 ****/
 
-function notFound(res, error) {
+function logError(code, hash, bundle) {
+    console.log(['MendelError=' + code, 'hash=' + hash, 'bundle=' + bundle].join(' '));
+}
+
+function notFound(res, error, params) {
     var message = "Mendel: ";
     if (!error) {
         message += 'Bundle not found';
     } else {
         message += error.code + ' - ' + error.message;
     }
+
+    logError(error ? error.code : 'UNKNOWN', params.hash, params.bundle);
+
     res.status(404).send(message);
 }
 
