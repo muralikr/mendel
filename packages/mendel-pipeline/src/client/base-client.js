@@ -32,6 +32,7 @@ class BaseMendelClient extends EventEmitter {
         this.generators = new MendelGenerators(this.config, this.registry);
         this.outlets = new Outlets(this.config);
         this.synced = false;
+        this.startTime = 0;
     }
 
     _setupClient() {
@@ -47,21 +48,23 @@ class BaseMendelClient extends EventEmitter {
         });
 
         this.client.on('sync', function() {
-            clearTimeout(this.initSyncMessage);
-            this.emit('ready');
-            this.synced = true;
-            this.onSync.apply(this, arguments);
+                clearTimeout(this.initSyncMessage);
+                var time = Date.now() - this.startTime;
+                this.emit('ready');
+                this.synced = true;
+                this.onSync.apply(this, arguments);
 
-            if (this._verbose)
-                console.log('[Mendel] Synced');
-        }.bind(this));
+                if (this._verbose)
+                    console.log('[Mendel] Synced ' + time + 'ms ' + JSON.stringify(arguments));
+            }.bind(this));
         this.client.on('unsync', function() {
-            if (this._verbose)
-                console.log('[Mendel] File change detected. Waiting to sync again...'); // eslint-disable-line max-len
-            this.emit('change');
-            this.synced = false;
-            this.onUnsync.apply(this, arguments);
-        }.bind(this));
+                if (this._verbose)
+                    console.log('[Mendel] File change detected. Waiting to sync again...' + JSON.stringify(arguments)); // eslint-disable-line max-len
+                this.startTime = Date.now();
+                this.emit('change');
+                this.synced = false;
+                this.onUnsync.apply(this, arguments);
+            }.bind(this));
     }
 
     run(callback=()=>{}) {
@@ -72,9 +75,9 @@ class BaseMendelClient extends EventEmitter {
             this.initSyncMessage = setTimeout(() => {
                 this.initSyncMessage = null;
                 console.log([
-                    '[Mendel] Waiting for sync. Can take few moments',
-                    'if an environment performs complex operations.',
-                ].join(' '));
+                        '[Mendel] Waiting for sync. Can take few moments',
+                        'if an environment performs complex operations.',
+                    ].join(' '));
             }, 3000);
         }
 
